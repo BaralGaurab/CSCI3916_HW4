@@ -11,8 +11,8 @@ chai.should();
 chai.use(chaiHttp);
 
 let login_details = {
-    name: 'test2',
-    username: 'email2@email.com',
+    name: 'test7',
+    username: 'email7@email.com',
     password: '123@abc'
 }
 
@@ -61,14 +61,14 @@ describe('Test Review Routes', () => {
               .post('/signup')
               .send(login_details)
               .end((err, res) =>{
-                res.should.have.status(200);
+                res.should.have.status(201);
                 res.body.success.should.be.eql(true);
                 //follow-up to get the JWT token
                 chai.request(server)
                     .post('/signin')
                     .send(login_details)
                     .end((err, res) => {
-                        res.should.have.status(200);
+                        res.should.have.status(201);
                         res.body.should.have.property('token');
                         token = res.body.token;
                         done();
@@ -85,7 +85,7 @@ describe('Test Review Routes', () => {
                 .set('Authorization', token)
                 .send()
                 .end((err, res) => {
-                    res.should.have.status(200);
+                    res.should.have.status(201);
                     res.body.should.be.an('array');
                     res.body.forEach(movie => {
                         movie.should.have.property('_id')
@@ -108,7 +108,7 @@ describe('Test Review Routes', () => {
                 .set('Authorization', token)
                 .send(review_details)
                 .end((err, res) => {
-                    res.should.have.status(200);
+                    res.should.have.status(201);
                     res.body.message.should.eq('Review created!')
                     done();
                 })

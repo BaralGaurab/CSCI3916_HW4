@@ -74,10 +74,24 @@ router.route('/movies')
   // GET all movies
   .get(authJwtController.isAuthenticated, async (req, res) => {
     try {
-      const movies = await Movie.find();
-      res.json(movies);
+      if (req.query.reviews === 'true') {
+        const movies = await Movie.aggregate([
+          {
+            $lookup: {
+            from: 'reviews',
+            localField: '_id',
+            foreignField: 'movieId',
+            as: 'reviews'
+            }
+          },
+          { $addFields: { avgRating: { $avg: '$reviews.rating' } } }
+        ]);
+        return res.json(movies);
+        }
+        const movies = await Movie.find();
+        return res.json(movies);
     } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
+      return res.status(500).json({ success: false, message: err.message });
     }
   })
   // POST a new movie
@@ -94,12 +108,12 @@ router.route('/movies')
     }
   });
 
-  router.route('/movies/:title')
+  router.route('/movies/:id')
   .get(authJwtController.isAuthenticated, async (req, res) => {
     try {
       if (req.query.reviews === 'true') {
         const movieWithReviews = await Movie.aggregate([
-          { $match: { title: req.params.title } },
+          { $match: { _id: new mongoose.Types.ObjectId(req.params.id) } },
           { 
             $lookup: {
               from: "reviews", 
@@ -107,15 +121,16 @@ router.route('/movies')
               foreignField: "movieId",
               as: "reviews"
             }
-          }
+          },
+          { $addFields: {avgRating: {$avg: '$reviews.rating'}}}
         ]);
-        if (!movieWithReviews || movieWithReviews.length === 0) {
+        if (!movieWithReviews.length) {
           return res.status(404).json({ success: false, message: 'Movie not found.' });
         }
         res.json(movieWithReviews[0]);
       } else {
         // If no reviews query, return just the movie data
-        const movie = await Movie.findOne({ title: req.params.title });
+        const movie = await Movie.findById(req.params.id);
         if (!movie) return res.status(404).json({ success: false, message: 'Movie not found.' });
         res.json(movie);
       }

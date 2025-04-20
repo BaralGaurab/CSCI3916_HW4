@@ -17,6 +17,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(passport.initialize());
 
 const router = express.Router();
+router.use(authJwtController.isAuthenticated);
 
 // Removed getJSONObjectForMovieRequirement as it's not used
 
@@ -84,11 +85,12 @@ router.route('/movies')
             as: 'reviews'
             }
           },
-          { $addFields: { avgRating: { $avg: '$reviews.rating' } } }
+          { $addFields: { avgRating: { $avg: '$reviews.rating' } } },
+          { $sort: { avgRating: -1 }}
         ]);
         return res.json(movies);
         }
-        const movies = await Movie.find();
+        const movies = await Movie.find().sort({ title: 1 });
         return res.json(movies);
     } catch (err) {
       return res.status(500).json({ success: false, message: err.message });

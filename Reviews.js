@@ -11,5 +11,7 @@ var ReviewSchema = new Schema({
     rating: { type: Number, min: 0, max: 5, required: true }
 });
 
+ReviewSchema.index({ movieId: 1, username: 1 }, { unique: true });
+
 // return the model
 module.exports = mongoose.model('Review', ReviewSchema);

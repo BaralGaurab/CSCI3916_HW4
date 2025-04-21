@@ -179,35 +179,38 @@ router.route('/movies')
   router.post('/reviews', authJwtController.isAuthenticated, async (req, res) => {
     try {
       const { movieId, rating, review } = req.body;
-  
       if (!movieId || rating == null || !review)
         return res.status(400).json({ message: 'movieId, rating and review are required.' });
-  
       if (rating < 0 || rating > 5)
         return res.status(400).json({ message: 'rating must be between 0 and 5.' });
   
       const username = getUsername(req);
-      if (!username)
-        return res.status(401).json({ message: 'Invalid token.' });
+      if (!username) return res.status(401).json({ message: 'Invalid token.' });
   
       const movie = await Movie.findById(movieId);
-      if (!movie)
-        return res.status(404).json({ message: 'Movie not found.' });
+      if (!movie) return res.status(404).json({ message: 'Movie not found.' });
   
-      const newReview = new Review({ movieId, username, review, rating });
-      await newReview.save();
+      await Review.findOneAndUpdate(
+        { movieId, username },
+        { review, rating },
+        { new: true, upsert: true, runValidators: true }
+      );
   
       const [{ avgRating = null } = {}] = await Review.aggregate([
         { $match: { movieId: movie._id } },
         { $group: { _id: null, avgRating: { $avg: '$rating' } } }
       ]);
   
-      return res.status(201).json({ message: 'Review created!', avgRating });
+      const msg = avgRating != null ? 'Review saved!' : 'Review saved, no rating yet.';
+      return res.status(201).json({ message: msg, avgRating });
     } catch (err) {
+      if (err.code === 11000)
+        return res.status(400).json({ message: 'You already reviewed this movie.' });
       console.error(err);
       return res.status(500).json({ message: err.message });
     }
   });
+  
   
   router.get('/reviews', async (req, res) => {
     try {

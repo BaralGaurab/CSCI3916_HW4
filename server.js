@@ -145,7 +145,7 @@ router.route('/movies')
   .put(authJwtController.isAuthenticated, async (req, res) => {
     try {
       const updatedMovie = await Movie.findByIdAndUpdate(
-        { title: req.params.id},
+        req.params.id,
         req.body,
         { new: true, runValidators: true }
       );
@@ -157,7 +157,7 @@ router.route('/movies')
   })
   .delete(authJwtController.isAuthenticated, async (req, res) => {
     try {
-      const deletedMovie = await Movie.findByIdAndDelete({ title: req.params.id });
+      const deletedMovie = await Movie.findByIdAndDelete(req.params.id);
       if (!deletedMovie) return res.status(404).json({ success: false, message: 'Movie not found.' });
       res.json({ success: true, message: 'Movie deleted successfully.' });
     } catch (err) {

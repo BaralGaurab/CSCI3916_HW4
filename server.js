@@ -219,6 +219,42 @@ router.route('/movies')
   });
 
 
+  // EXTRA CREDIT
+  router.post('/movies/search', async (req, res) => {
+    try {
+      const { query } = req.body;
+      if (!query) return res.status(400).json({ message: 'query is required.' });
+  
+      const regex = new RegExp(query, 'i');
+      const docs  = await Movie.aggregate([
+        {
+          $match: {
+            $or: [
+              { title: regex },
+              { 'actors.actorName': regex }
+            ]
+          }
+        },
+        {
+          $lookup: {
+            from: 'reviews',
+            localField: '_id',
+            foreignField: 'movieId',
+            as: 'movieReviews'
+          }
+        },
+        { $addFields: { avgRating: { $avg: '$movieReviews.rating' } } },
+        { $sort: { avgRating: -1 } }
+      ]);
+  
+      return res.json(docs);
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+
 app.use('/', router);
 
 const PORT = process.env.PORT || 8080; // Define PORT before using it

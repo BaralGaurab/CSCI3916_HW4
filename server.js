@@ -7,6 +7,7 @@ const cors = require('cors');
 const User = require('./Users');
 const Movie = require('./Movies'); // You're not using Movie, consider removing it
 const Review = require('./Reviews');
+const mongoose = require('mongoose');
 
 
 const app = express();
@@ -17,7 +18,6 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(passport.initialize());
 
 const router = express.Router();
-router.use(authJwtController.isAuthenticated);
 
 // Removed getJSONObjectForMovieRequirement as it's not used
 
@@ -69,6 +69,8 @@ router.post('/signin', async (req, res) => { // Use async/await
     res.status(500).json({ success: false, message: 'Something went wrong. Please try again later.' }); // 500 Internal Server Error
   }
 });
+
+router.use(authJwtController.isAuthenticated);
 
 // Define endpoints for '/movies'
 router.route('/movies')
@@ -142,8 +144,8 @@ router.route('/movies')
   })
   .put(authJwtController.isAuthenticated, async (req, res) => {
     try {
-      const updatedMovie = await Movie.findOneAndUpdate(
-        { title: req.params.title },
+      const updatedMovie = await Movie.findByIdAndUpdate(
+        { title: req.params.id},
         req.body,
         { new: true, runValidators: true }
       );
@@ -155,7 +157,7 @@ router.route('/movies')
   })
   .delete(authJwtController.isAuthenticated, async (req, res) => {
     try {
-      const deletedMovie = await Movie.findOneAndDelete({ title: req.params.title });
+      const deletedMovie = await Movie.findByIdAndDelete({ title: req.params.id });
       if (!deletedMovie) return res.status(404).json({ success: false, message: 'Movie not found.' });
       res.json({ success: true, message: 'Movie deleted successfully.' });
     } catch (err) {
@@ -163,28 +165,47 @@ router.route('/movies')
     }
   });
 
-
-router.post('/reviews', authJwtController.isAuthenticated, async (req, res) => {
+  function getUsername(req) {
+    const hdr   = req.headers.authorization || '';
+    const token = hdr.startsWith('jwt ') ? hdr.slice(4) : hdr;
     try {
-      const { movieId, username, review, rating } = req.body;
-      if (!movieId || !username || !review || rating === undefined) {
-        return res.status(400).json({ success: false, message: 'Missing required review fields.' });
-      }
+      const decoded = jwt.verify(token, process.env.SECRET_KEY);
+      return decoded.username;
+    } catch {
+      return null;
+    }
+  }
+
+  router.post('/reviews', authJwtController.isAuthenticated, async (req, res) => {
+    try {
+      const { movieId, rating, review } = req.body;
+  
+      if (!movieId || rating == null || !review)
+        return res.status(400).json({ message: 'movieId, rating and review are required.' });
+  
+      if (rating < 0 || rating > 5)
+        return res.status(400).json({ message: 'rating must be between 0 and 5.' });
+  
+      const username = getUsername(req);
+      if (!username)
+        return res.status(401).json({ message: 'Invalid token.' });
   
       const movie = await Movie.findById(movieId);
-      if (!movie) {
-        return res.status(404).json({ success: false, message: 'Movie not found in database.' });
-      }
+      if (!movie)
+        return res.status(404).json({ message: 'Movie not found.' });
   
       const newReview = new Review({ movieId, username, review, rating });
       await newReview.save();
   
-      // Custom analytics code
+      const [{ avgRating = null } = {}] = await Review.aggregate([
+        { $match: { movieId: movie._id } },
+        { $group: { _id: null, avgRating: { $avg: '$rating' } } }
+      ]);
   
-      res.status(201).json({ message: 'Review created!' });
+      return res.status(201).json({ message: 'Review created!', avgRating });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ success: false, message: err.message });
+      return res.status(500).json({ message: err.message });
     }
   });
   
